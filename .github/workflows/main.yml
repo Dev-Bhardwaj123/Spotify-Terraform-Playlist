@@ -1,4 +1,4 @@
-name: Deploy Spotify Playlist
+name: Deploy Terraform Spotify Playlist
 
 on:
   push:
@@ -9,43 +9,33 @@ on:
       - main
 
 jobs:
-  deploy:
-    name: Run Docker + Deploy Terraform
+  terraform:
+    name: Deploy with Terraform
     runs-on: ubuntu-latest
-
-    env:
-      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-      SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-
-      - name: Start Spotify Auth Proxy in Docker
-        run: |
-          docker run --rm -d -p 27228:27228 \
-            --env-file .env \
-            ghcr.io/conradludgate/spotify-auth-proxy
-
-          echo "Waiting for authentication..."
-          sleep 10
-          
-          # Fetch API Key from the running container logs
-          export SPOTIFY_API_KEY=$(docker logs $(docker ps -q --filter ancestor=ghcr.io/conradludgate/spotify-auth-proxy) 2>&1 | grep -oP '(?<=API Key: ).*')
-          echo "SPOTIFY_API_KEY=$SPOTIFY_API_KEY" >> $GITHUB_ENV
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
+      - name: Start Spotify Auth Proxy in Docker
+        id: start-docker
+        run: |
+          API_KEY=$(docker run --rm -p 27228:27228 --env-file .env ghcr.io/conradludgate/spotify-auth-proxy 2>&1 | grep -oP '(?<=API Key: ).*')
+          echo "SPOTIFY_API_KEY=$API_KEY" >> $GITHUB_ENV
+          
       - name: Terraform Init
         run: terraform init
 
       - name: Terraform Plan
-        run: terraform plan -var="api_key=${{ env.SPOTIFY_API_KEY }}" -out=tfplan
+        run: terraform plan -var="api_key=$SPOTIFY_API_KEY" -out=tfplan
 
       - name: Terraform Apply
-        run: terraform apply -var="api_key=${{ env.SPOTIFY_API_KEY }}" -auto-approve tfplan
+        run: terraform apply -var="api_key=$SPOTIFY_API_KEY" -auto-approve tfplan
+
 
 
