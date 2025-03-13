@@ -42,9 +42,6 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Plan
-        run: terraform plan -var="api_key=${{ env.SPOTIFY_API_KEY }}" -out=tfplan
-
       - name: Terraform Apply
         run: terraform apply -var="api_key=${{ env.SPOTIFY_API_KEY }}" -auto-approve tfplan
 
