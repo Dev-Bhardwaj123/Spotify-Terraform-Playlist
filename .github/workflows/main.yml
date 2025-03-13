@@ -16,8 +16,6 @@ jobs:
     env:
       SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-      TF_CLOUD_ORGANIZATION: "your-tf-org"
-      TF_WORKSPACE: "spotify-playlist"
 
     steps:
       - name: Checkout Repository
@@ -39,4 +37,5 @@ jobs:
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
+
 
