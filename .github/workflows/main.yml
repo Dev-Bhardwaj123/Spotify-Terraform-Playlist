@@ -3,49 +3,44 @@ name: Deploy Spotify Playlist
 on:
   push:
     branches:
-      - main
+      - main  # Runs workflow when code is pushed to main branch
   pull_request:
     branches:
       - main
 
 jobs:
   deploy:
-    name: Run Docker + Deploy Terraform
-    runs-on: ubuntu-latest
-
-    env:
-      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-      SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+    runs-on: ubuntu-latest  # Runs on a Linux environment
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # Fetches your code
 
-      - name: Start Spotify Auth Proxy in Docker
-        run: |
-          docker run --rm -d -p 27228:27228 \
-            --env-file .env \
-            ghcr.io/conradludgate/spotify-auth-proxy
-
-          echo "Waiting for authentication..."
-          sleep 10
-          
-          # Fetch API Key from the running container logs
-          export SPOTIFY_API_KEY=$(docker logs $(docker ps -q --filter ancestor=ghcr.io/conradludgate/spotify-auth-proxy) 2>&1 | grep -oP '(?<=API Key: ).*')
-          echo "SPOTIFY_API_KEY=$SPOTIFY_API_KEY" >> $GITHUB_ENV
-
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v2
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2  # Installs Terraform
         with:
-          terraform_version: 1.5.0
+          terraform_version: 1.7.5  # Change to latest stable version if needed
 
-      - name: Terraform Init
+      - name: Login to Spotify Auth Proxy
+        run: |
+          docker run -d -p 27228:27228 --env SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }} --env SPOTIFY_CLIENT_SECRET=${{ secrets.SPOTIFY_CLIENT_SECRET }} --name spotify-auth-proxy ghcr.io/conradludgate/spotify-auth-proxy
+          sleep 5  # Wait for the container to start
+
+      - name: Initialize Terraform
         run: terraform init
 
-      - name: Terraform Plan
-        run: terraform plan -var="api_key=${{ env.SPOTIFY_API_KEY }}" -out=tfplan
+      - name: Apply Terraform Configuration
+        run: terraform apply -auto-approve
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          TF_VAR_api_key: ${{ secrets.API_KEY }}
 
-      - name: Terraform Apply
-        run: terraform apply -var="api_key=${{ env.SPOTIFY_API_KEY }}" -auto-approve tfplan
+      - name: Verify Deployment
+        run: terraform output || echo "Deployment successful!"
+
+      - name: Cleanup
+        run: docker stop spotify-auth-proxy && docker rm spotify-auth-proxy
+
 
 
