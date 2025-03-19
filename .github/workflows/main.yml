@@ -1,4 +1,4 @@
-name: Deploy Spotify Playlist
+name: Terraform Deployment to Spotify
 
 on:
   push:
@@ -9,43 +9,31 @@ on:
       - main
 
 jobs:
-  deploy:
-    name: Run Docker + Deploy Terraform
+  terraform:
+    name: Apply Terraform Changes
     runs-on: ubuntu-latest
-
-    env:
-      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-      SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Start Spotify Auth Proxy in Docker
-        run: |
-          docker run --rm -d -p 27228:27228 \
-            --env-file .env \
-            ghcr.io/conradludgate/spotify-auth-proxy
-
-          echo "Waiting for authentication..."
-          sleep 10
-          
-          # Fetch API Key from the running container logs
-          export SPOTIFY_API_KEY=$(docker logs $(docker ps -q --filter ancestor=ghcr.io/conradludgate/spotify-auth-proxy) 2>&1 | grep -oP '(?<=API Key: ).*')
-          echo "SPOTIFY_API_KEY=$SPOTIFY_API_KEY" >> $GITHUB_ENV
-
-      - name: Install Terraform
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.5.0
+          terraform_version: 1.6.0  # Change this to the latest stable version if needed
 
-      - name: Terraform Init
+      - name: Initialize Terraform
         run: terraform init
 
-      - name: Terraform Plan
-        run: terraform plan -var="api_key=${{ env.SPOTIFY_API_KEY }}" -out=tfplan
+      - name: Validate Terraform Configuration
+        run: terraform validate
 
-      - name: Terraform Apply
-        run: terraform apply -var="api_key=${{ env.SPOTIFY_API_KEY }}" -auto-approve tfplan
+      - name: Plan Terraform Changes
+        run: terraform plan
 
-
+      - name: Apply Terraform Changes
+        run: terraform apply -auto-approve
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          SPOTIFY_API_KEY: ${{ secrets.SPOTIFY_API_KEY }}
